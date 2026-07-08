@@ -66,6 +66,9 @@ def list_orders(limit: int = 10, cursor: Optional[str] = None):
 
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
+    if request.url.path != "/orders":
+        return await call_next(request)
+
     client = request.headers.get("X-Client-Id")
 
     if client:
@@ -84,5 +87,4 @@ async def rate_limit(request: Request, call_next):
         history.append(now)
         client_requests[client] = history
 
-    response = await call_next(request)
-    return response
+    return await call_next(request)
