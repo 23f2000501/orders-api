@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Header, Request
-from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from typing import Optional
 import uuid
 import time
@@ -24,15 +24,20 @@ orders_created = {}
 client_requests = {}
 
 
+@app.get("/")
+def root():
+    return {"status": "ok"}
+
+
 @app.post("/orders", status_code=201)
 def create_order(idempotency_key: str = Header(..., alias="Idempotency-Key")):
     if idempotency_key in orders_created:
         return orders_created[idempotency_key]
 
     order = {
-    "id": str(uuid.uuid4()),
-    "status": "created"
-}
+        "id": str(uuid.uuid4()),
+        "status": "created"
+    }
 
     orders_created[idempotency_key] = order
     return order
@@ -40,7 +45,6 @@ def create_order(idempotency_key: str = Header(..., alias="Idempotency-Key")):
 
 @app.get("/orders")
 def list_orders(limit: int = 10, cursor: Optional[str] = None):
-
     start = 1
 
     if cursor:
@@ -51,7 +55,6 @@ def list_orders(limit: int = 10, cursor: Optional[str] = None):
     items = [{"id": i} for i in range(start, end + 1)]
 
     next_cursor = None
-
     if end < TOTAL_ORDERS:
         next_cursor = base64.b64encode(str(end + 1).encode()).decode()
 
@@ -63,26 +66,23 @@ def list_orders(limit: int = 10, cursor: Optional[str] = None):
 
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
-
     client = request.headers.get("X-Client-Id")
 
     if client:
-
         now = time.time()
 
         history = client_requests.get(client, [])
-
         history = [t for t in history if now - t < WINDOW]
 
         if len(history) >= RATE_LIMIT:
             return JSONResponse(
                 status_code=429,
                 content={"detail": "Rate limit exceeded"},
-                headers={"Retry-After": "10"}
+                headers={"Retry-After": "10"},
             )
 
         history.append(now)
-
         client_requests[client] = history
 
-    return await call_next(request)
+    response = await call_next(request)
+    return response
