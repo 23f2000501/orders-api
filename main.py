@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Header, HTTPException, Response
+from fastapi import FastAPI, Header, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
 import uuid
@@ -10,7 +11,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -29,8 +30,9 @@ def create_order(idempotency_key: str = Header(..., alias="Idempotency-Key")):
         return orders_created[idempotency_key]
 
     order = {
-        "id": str(uuid.uuid4())
-    }
+    "id": str(uuid.uuid4()),
+    "status": "created"
+}
 
     orders_created[idempotency_key] = order
     return order
@@ -60,7 +62,7 @@ def list_orders(limit: int = 10, cursor: Optional[str] = None):
 
 
 @app.middleware("http")
-async def rate_limit(request, call_next):
+async def rate_limit(request: Request, call_next):
 
     client = request.headers.get("X-Client-Id")
 
@@ -73,8 +75,9 @@ async def rate_limit(request, call_next):
         history = [t for t in history if now - t < WINDOW]
 
         if len(history) >= RATE_LIMIT:
-            return Response(
+            return JSONResponse(
                 status_code=429,
+                content={"detail": "Rate limit exceeded"},
                 headers={"Retry-After": "10"}
             )
 
